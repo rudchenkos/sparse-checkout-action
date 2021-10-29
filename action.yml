@@ -1,0 +1,33 @@
+# Sparse checkout: https://github.com/actions/checkout/issues/172
+# actions/checkout@v2 does not support sparse checkout as of Oct 2021
+
+name: Sparse checkout
+inputs:
+  token:
+    description: 'GitHub token'
+    default: ${{ github.token }}
+
+  paths:
+    description: 'Paths to add to the sparse checkout'
+    required: true
+    type: string # There is no type "list" in Github Actions as of Oct 2021
+
+runs:
+  using: composite
+  steps:
+    - name: Perform sparse checkout
+      shell: bash
+      run: |
+        REPO="https://${GITHUB_ACTOR}:${{ inputs.token }}@github.com/${GITHUB_REPOSITORY}.git"
+        # For a partial checkout we need a branch name (like issue/APP-XXXX)
+        # Now, follow the hands:
+        #   GITHUB_HEAD_REF is defined only for pull_request triggers and it's a branch name
+        #   GITHUB_REF is defined only for branch push triggers and it's a ref (ref/heads/issue/APP-XXXX)
+        PR_BRANCH=${GITHUB_HEAD_REF}
+        PUSH_BRANCH=${GITHUB_REF#refs/heads/}
+        BRANCH="${PR_BRANCH:-${PUSH_BRANCH}}" # Pick one of the two
+
+        git clone --filter=blob:none --no-checkout --depth 1 --single-branch -b "$BRANCH" --sparse "$REPO" .
+        git sparse-checkout init --cone
+        git sparse-checkout add ${{ inputs.paths }}
+        git checkout
